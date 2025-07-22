@@ -5,27 +5,32 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# Exploring our Data
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+## Introduction
 
-## Running Code
+It is vitally important in the medical field to have awareness of specific conditions and the risks that individuals may be predisposed to as they go about their lives. One such condition is diabetes, one of the most widespread chronic diseases in the United States. Diabetes can present many health risks to those who have it, and as such there is a vested interest for many people to try and find ways to predict when an individual has a high-risk of developing and/or having diabetes. While it's unlikely that we will ever be able to perfectly predict whether someone has diabetes or not, we can certainly give it our best shot.
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+The data we have to work with consists of 253,680 survey responses from the Behavioral Risk Factor Surveillance System (BRFSS) conducted by the Center for Disease Control and Prevention (CDC) in 2015. The survey focuses on potential indicators for diabetes in an individual's medical history via risk factors such as having high blood pressure, high cholesterol, or having had a stroke/heart attack in their past. There are also demographic indicators present such as an individual's sex, age, education level, or current income. The goal of this survey is to find relationships between these medical/demographic indicators to determine which factors most clearly indicated a high risk for diabetes.
 
-```{r}
-1 + 1
-```
+To begin, we will choose a subset of these factors to briefly explore in order to get a sense of what factors may have the strongest effect on someone's risk for developing diabetes:
 
-You can add options to executable code like this
+-   **Diabetes_binary**: this is the variable that will act as the response. It is a two-level factor where 0 represents an individual without diabetes and 1 represents an individual with pre-diabetes or diabetes.
 
-```{r}
-#| echo: false
-2 * 2
-```
+-   **BMI**: studies such as [this one](https://www.nature.com/articles/s41598-024-52023-5) from the University of Gothenburg in Sweden suggest that BMI may be one of the strongest indicators for diabetes.
 
-The `echo: false` option disables the printing of code (only output is displayed).
+-   **HighChol:** short for High Cholesterol, this factor was also named as an influential factor in the study mentioned previously.
 
-# Modeling
+-   **Income:** an individual's ability to treat any health conditions that may arise can only be as comprehensive as they can afford it to be. As such, it is worth exploring whether an individual's income has any sort of relationship with the presence of diabetes as a health condition.
+
+By exploring these factors individually and in relation to the presence of diabetes in an individual, we can hopefully get a sense of how these predictors have an effect on the presence of diabetes and how much they will affect our models when we reach that portion of this analysis.
+
+## Modeling
 
 [Click here to see the Modeling portion of this analysis.](Modeling.html)
+
+## Sources
+
+[Diabetes Health Indicators Dataset by Alex Teboul](https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset?resource=download&select=diabetes_binary_health_indicators_BRFSS2015.csv)
+
+[Identifying top ten predictors of type 2 diabetes through machine learning analysis of UK Biobank data](https://www.nature.com/articles/s41598-024-52023-5)
