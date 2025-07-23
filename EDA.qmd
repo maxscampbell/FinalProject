@@ -9,6 +9,7 @@ editor: visual
 
 ```{r}
 #| echo: false
+#| warning: false
 
 # Read in required packages
 library(tidyverse)
@@ -71,9 +72,95 @@ diabetes <- raw_data |>
       "< 35k", "< $50k", "< $75k", "More than $75k"
     )))
 
-# Check for empty rows
+# Check for empty cells in the dataset
 paste("Empty cells:", sum(is.na(diabetes)))
 ```
+
+## Summarizations
+
+Now that our data is cleaned up, let's start by taking a look at some summary statistics. First off, let's observe the presence of diabetes in Americans:
+
+```{r}
+summary(diabetes$Diabetes_binary)
+```
+
+This shows us that `r 35436 / 253680`% of the people surveyed had diabetes or pre-diabetes. Let's compare this to those with high cholesterol:
+
+```{r}
+summary(diabetes$HighChol)
+```
+
+This equates to `r 107591 / 253680`% of people surveyed, which is a lot more prevalent than diabetes. This isn't too unexpected since diabetes is a specific condition whereas high cholesterol can be a cause and symptom of many conditions. Now let's look at where these overlap:
+
+```{r}
+#Produce contingency table
+con.tab <- table(diabetes$HighChol, diabetes$Diabetes_binary)
+con.tab
+
+#Calculate rate of diabetes in high-cholesterol individuals
+paste("Rate of diabetes in patients with high cholesterol: ", round(con.tab[2,2] / sum(con.tab[2,1], con.tab[2,2]), 2), "%", sep = "")
+```
+
+We can see that the rate went up by about 10%, which feels like a large climb. We should compare this to another two-level factor, such as whether people eat at least 1 serving of fruits per day.
+
+```{r}
+#Produce contingency table
+con.tab2 <- table(diabetes$Fruits, diabetes$Diabetes_binary)
+con.tab2
+
+#Calculate rate of diabetes in high-cholesterol individuals
+paste("Rate of diabetes in patients who eat at least one serving of fruit per day: ", round(con.tab2[2,2] / sum(con.tab2[2,1], con.tab2[2,2]), 2), "%", sep = "")
+```
+
+We see here that the rate stayed roughly similar to the overall rate of diabetes. As such, we can see that having a high cholesterol level can be a valuable predictor when it comes time to model with this data.
+
+Let's also take a look at income as a predictor. First, a look at how income is distributed in this survey:
+
+```{r}
+#| warning: FALSE
+
+
+#Plot a histogram of income levels
+ggplot(data = diabetes, aes(x = Income)) +
+  geom_histogram(stat = "count", aes(y = after_stat(count / sum(count)))) + #The after_stat function allows us to graph in terms of %
+  labs(title = "Income Level", subtitle = "CDC, 2015") +
+  ylab("Percentage of People Surveyed")
+```
+
+There's a very clear left skew in this data. Approximately 40% of people surveyed were making more than \$75,000/year in 2015. This means that, if the rate of people getting diabetes was the same across income levels, we should see that most of them are from that top income bracket just because it comprises such a large amount of our observations. However, if income levels do have an effect, we might expect to see deviations from the overall rate, especially at lower income brackets. Let's take a look now:
+
+```{r}
+#Contingency Table of Income vs Diabetes
+con.tab3 <- table(diabetes$Income, diabetes$Diabetes_binary)
+percent <- con.tab3[,2] / (con.tab3[,1] + con.tab3[,2])
+tab <- cbind(con.tab3, percent)
+tab
+```
+
+This is a significant departure from the raw income data! The `percent` column shown above is the rate of diabetes within each income level. At first, this looks to be expected because the group with the highest raw number of people with diabetes is the highest income bracket. However, when we account for rates of diabetes instead of a simple count, we see a clearer picture. Keeping in mind that the overall rate is about 13%, we see that rates are higher at lower income levels, while they are significantly lower at the highest income level. Likely reasons for this include a lack of access to healthcare and resources to stay healthy.
+
+Now let's look at BMI. As an indicator of obesity and general well-being, it would be logical to assume that it has an outsized effect on the rate of diabetes prevalence in the United States. First, let's take a look at our BMI data by itself:
+
+```{r}
+ggplot(data = diabetes, aes(x = BMI)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of BMI")
+
+summary(diabetes$BMI)
+```
+
+We see a wide range of BMIs in our data, with a mean around 28.38 and an IQR of `r 31 - 24`. Now let's see what happens if we split our data up into those with diabetes (or pre-diabetes) and those without.
+
+```{r}
+ggplot(data = diabetes, aes(x = BMI, y = Diabetes_binary)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of BMI grouped by Diabetes status") +
+  ylab("Has Diabetes")
+```
+
+Once again, we see similar shapes with a lot of potential outliers to the higher extremes. However, we do see that the mean BMI notably shifts up to approximately 30-32, which does indicate that having a higher BMI could be an indicator for higher rates of diabetes.
+
+With this information, we've confirmed our prior inclinations that high cholesterol, higher BMIs, and lower income could have a notable effect on our modeling for this diabetes data, as each indicator shows a significant change in diabetes rates compared to the overall rate when grouped up by diagnosis.
 
 ## Modeling
 
