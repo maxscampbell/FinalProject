@@ -5,7 +5,11 @@ format: html
 editor: visual
 ---
 
+
+
 # Modeling our Data
+
+
 
 ```{r}
 #| echo: false
@@ -53,6 +57,8 @@ diabetes <- raw_data |>
     )))
 ```
 
+
+
 ## Introduction
 
 When looking at data like the diabetes health indicators, the first inclination is most likely to try and predict whether a person has diabetes, given the presence (or absence) of these indicators. In order to accomplish this, there are three major options that come to mind: logistic regressions, classification trees, and random forests.
@@ -69,6 +75,8 @@ A second way we could approach this problem is via classification. This works be
 
 The final way we will consider in this exercise is a random forest. This is a type of ensemble tree method where we bootstrap a large number of individual classification trees in hopes of getting a more accurate prediction. The random forest method works similarly to a classification tree, with the key difference being that a subset of the predictors present in the data are randomly chosen (the exact number of which can be tuned) and subset from the data to obtain a prediction. By taking a random subset of predictors, we reduce the chances that one really strong predictor overtakes the rest of the model and basically becomes the only predictor that it uses to choose an outcome. From there, we iterate on this process numerous times, selecting a different random subset of predictors on each iteration. Once we have completed the bootstrap, we can then "average" our predictions by fitting our data to each tree within the forest and taking the most prevalent outcome per observation. This technique is advantageous because we now gain access to a measure of variability within our bootstrap iterations, so we can see how often our model is deviating from the most prevalent outcome. This is a luxury that is not afforded by a single classification tree.
 
+
+
 ```{r}
 #Set a random seed for reproducible results
 set.seed(72625)
@@ -78,6 +86,8 @@ diabetes_train <- training(diabetes_split)
 diabetes_test <- testing(diabetes_split)
 diabetes_folds <- vfold_cv(diabetes_train, 5)
 ```
+
+
 
 What we just did in the code shown above is split up our initial data into a training split and test split (70%/30%, respectively), and then further split the training set into five cross-validation folds. This will allow us to fit models in a way that allows us to see how much variability our predictions have, which can further optimize our model. We can then take each model and fit on the test set as a way of comparing our models!
 
@@ -96,6 +106,8 @@ In our efforts to fit a logistic regression model, we will examine three separat
 We've already established that the predictors in Model 1 are likely to significantly drive the model, at the risk of not fitting enough variables to the model. In Model 2, we are trying to see if the health indicators offer a holistic prediction, at the risk of losing valuable information from predictors like Income that don't fall into this category. In Model 3, including all the variables is a pretty straight-forward option to pick, but we run the risk of over-fitting the model and losing quality in our predictions as a result.
 
 Let's fit and compare:
+
+
 
 ```{r}
 #Establish each model recipe
@@ -165,7 +177,11 @@ rbind(log_fit1 |> collect_metrics(),
   select(Model, everything())
 ```
 
+
+
 The accuracy for each model is about 86%, 86.5%, and 86.6% respectively. All of our models got similar results! As such, the best of the three models will be the one that minimizes log-loss. In this case, Model 3 minimizes log-loss as it has a value that is about 0.01 less than the next best model (Model 2). Therefore, Model 3 will be our selection from the logistic regression candidates. Let's refit it on the entire training set model now:
+
+
 
 ```{r}
 #Select best fitting parameter
@@ -173,11 +189,15 @@ log_final_fit <- log_work3 |>
   last_fit(diabetes_split, metrics = metric_set(accuracy, mn_log_loss))
 ```
 
+
+
 ## Classification Tree
 
 For a classification tree, we are going to use all the predictors by default, so selecting the best classification tree comes down to the one with the best tuning parameter. The tuning parameter in a classification tree attempts to adjust the model for complexity, so the best complexity parameter will be the one that minimizes log-loss for the model.
 
 Let's set a grid of tuning parameters and compare:
+
+
 
 ```{r}
 #Setup classification tree
@@ -211,7 +231,11 @@ tree_fits |>
   collect_metrics()
 ```
 
+
+
 Once again, we are in the same ballpark with accuracy at about 86% for every complexity level. Let's select the model with the best parameters and re-fit the training set data to that model.
+
+
 
 ```{r}
 #Select best fitting parameter
@@ -225,9 +249,13 @@ tree_final_fit <- tree_final |>
   last_fit(diabetes_split, metrics = metric_set(accuracy, mn_log_loss))
 ```
 
+
+
 ## Random Forest
 
 The tuning parameter of a random forest model is the number of predictors we use in each iteration of the model. We will still fit to our CV folds for the sake of consistency. Let's find the best tuning for the random forest model:
+
+
 
 ```{r}
 #We will re-use the tree recipe from the classification tree
@@ -256,7 +284,11 @@ rf_fit |>
   collect_metrics()
 ```
 
+
+
 Once again, we will select the best tuning parameter based on log-loss. Based on the output above, it looks like the 5-predictor random forest model ended up being the best fit based on log-loss.
+
+
 
 ```{r}
 #Select best tuning parameter
@@ -270,9 +302,13 @@ rf_final_fit <- rf_final |>
   last_fit(diabetes_split, metrics = metric_set(accuracy, mn_log_loss))
 ```
 
+
+
 ## Final Model Selection
 
 Now that we've run each type of model and selected a candidate from each, let's fit each model to our test sets and select the best model for predicting diabetes in an individual.
+
+
 
 ```{r}
 rbind(log_final_fit |> collect_metrics(),
@@ -283,4 +319,7 @@ rbind(log_final_fit |> collect_metrics(),
                    "Random Forest", "Random Forest"))
 ```
 
+
+
 In terms of accuracy, all models perform very similarly. It appears that, based on log-loss, the logistic regression with all 21 predictors was our best fit!
+
