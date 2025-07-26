@@ -101,6 +101,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   }
 }</script>
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -140,28 +169,131 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="quarto" class="level2">
-<h2 class="anchored" data-anchor-id="quarto">Quarto</h2>
-<p>Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <a href="https://quarto.org" class="uri">https://quarto.org</a>.</p>
+<section id="modeling-our-data" class="level1">
+<h1>Modeling our Data</h1>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>When looking at data like the diabetes health indicators, the first inclination is most likely to try and predict whether a person has diabetes, given the presence (or absence) of these indicators. In order to accomplish this, there are three major options that come to mind: logistic regressions, classification trees, and random forests.</p>
+<p>A logistic regression is particularly useful in scenarios where the variable being modeled upon has two factor levels as the response variable will always output a value between 0 and 1, no matter what the indicators are. As a result, the response essentially functions as a probability value that the response’s conditions are met. The way this is accomplished is by fitting the probability that the response’s conditions are met (hereafter referred to as a “success”) as a function of the log-odds of success.</p>
+<p><span class="math display">\[
+log(\frac{P(Success|x)}{1 - P(Success|x)}) = \beta_0 + \beta_1 x + ...
+\]</span></p>
+<p>We use this function in particular because the log-odds of success adopts a linear relationship with the parameters. The end goal of this model would be to quantify the odds of having diabetes given a set of indicators.</p>
+<p>A second way we could approach this problem is via classification. This works because we are essentially trying to predict which group an observation is most likely to fall into (presence of diabetes, in this case), so we don’t really care about the exact probability, which is what a logistic regression would seek to accomplish. Classification trees work by splitting the data into different regions based on predictors in a way that minimizes the error rate in our prediction. Then, we can give the tree an observation, and it will make decisions based on what conditions the observation meets (in this example, say that the first condition is that the individual has high cholesterol) to sift it through various “bins” of our data. Eventually, the tree will run out of decisions to make, and it will take the most prevalent response within the training data of the final bin and assign an outcome to that observation. We also have the advantage of accounting for complexity in our tree by assigning a parameter that minimizes the error rate of our predictions.</p>
+<p>The final way we will consider in this exercise is a random forest. This is a type of ensemble tree method where we bootstrap a large number of individual classification trees in hopes of getting a more accurate prediction. The random forest method works similarly to a classification tree, with the key difference being that a subset of the predictors present in the data are randomly chosen (the exact number of which can be tuned) and subset from the data to obtain a prediction. By taking a random subset of predictors, we reduce the chances that one really strong predictor overtakes the rest of the model and basically becomes the only predictor that it uses to choose an outcome. From there, we iterate on this process numerous times, selecting a different random subset of predictors on each iteration. Once we have completed the bootstrap, we can then “average” our predictions by fitting our data to each tree within the forest and taking the most prevalent outcome per observation. This technique is advantageous because we now gain access to a measure of variability within our bootstrap iterations, so we can see how often our model is deviating from the most prevalent outcome. This is a luxury that is not afforded by a single classification tree.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Set a random seed for reproducible results</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">72625</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Split the dataset into a training set and a test set</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>diabetes_split <span class="ot">&lt;-</span> <span class="fu">initial_split</span>(diabetes, <span class="at">prop =</span> <span class="fl">0.7</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>diabetes_train <span class="ot">&lt;-</span> <span class="fu">training</span>(diabetes_split)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>diabetes_test <span class="ot">&lt;-</span> <span class="fu">testing</span>(diabetes_split)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>diabetes_folds <span class="ot">&lt;-</span> <span class="fu">vfold_cv</span>(diabetes_train, <span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>What we just did in the code shown above is split up our initial data into a training split and test split (70%/30%, respectively), and then further split the training set into five cross-validation folds. This will allow us to fit models in a way that allows us to see how much variability our predictions have, which can further optimize our model. We can then take each model and fit on the test set as a way of comparing our models!</p>
+<p>Now that the process has been outlined, let’s get into the specifics of each model type:</p>
 </section>
-<section id="running-code" class="level2">
-<h2 class="anchored" data-anchor-id="running-code">Running Code</h2>
-<p>When you click the <strong>Render</strong> button a document will be generated that includes both content and the output of embedded code. You can embed code like this:</p>
+<section id="logistic-regression" class="level2">
+<h2 class="anchored" data-anchor-id="logistic-regression">Logistic Regression</h2>
+<p>In our efforts to fit a logistic regression model, we will examine three separate models to fit on the <code>Diabetes_binary</code> variable:</p>
+<ul>
+<li><p>Model 1: the three predictors discussed in the EDA section (high cholesterol, BMI, and income level)</p></li>
+<li><p>Model 2: every predictor explicitly related to individual health (high blood pressure, high cholesterol, BMI, history of strokes and/or heart attacks, etc., 11 total).</p></li>
+<li><p>Model 3: every predictor provided in the model (21 total).</p></li>
+</ul>
+<p>We’ve already established that the predictors in Model 1 are likely to significantly drive the model, at the risk of not fitting enough variables to the model. In Model 2, we are trying to see if the health indicators offer a holistic prediction, at the risk of losing valuable information from predictors like Income that don’t fall into this category. In Model 3, including all the variables is a pretty straight-forward option to pick, but we run the risk of over-fitting the model and losing quality in our predictions as a result.</p>
+<p>Let’s fit and compare:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dv">1</span> <span class="sc">+</span> <span class="dv">1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Establish each model recipe</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#Model 1: 3 predictors</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>log_rec1 <span class="ot">&lt;-</span> <span class="fu">recipe</span>(Diabetes_binary <span class="sc">~</span> HighChol <span class="sc">+</span> BMI <span class="sc">+</span> Income,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                   <span class="at">data =</span> diabetes_train) <span class="sc">|&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_normalize</span>(BMI) <span class="sc">|&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(HighChol, Income)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">#Model 2: 11 predictors</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>log_rec2 <span class="ot">&lt;-</span> <span class="fu">recipe</span>(Diabetes_binary <span class="sc">~</span> HighBP <span class="sc">+</span> HighChol <span class="sc">+</span> CholCheck <span class="sc">+</span> BMI <span class="sc">+</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>                     Stroke <span class="sc">+</span> HeartDiseaseorAttack <span class="sc">+</span> PhysActivity <span class="sc">+</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>                     GenHlth <span class="sc">+</span> MentHlth <span class="sc">+</span> PhysHlth <span class="sc">+</span> DiffWalk,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                   <span class="at">data =</span> diabetes_train) <span class="sc">|&gt;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_normalize</span>(BMI, MentHlth, PhysHlth) <span class="sc">|&gt;</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(HighBP, HighChol, CholCheck, Stroke, HeartDiseaseorAttack,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>               PhysActivity, GenHlth, DiffWalk)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co">#Model 3: All predictors</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>log_rec3 <span class="ot">&lt;-</span> <span class="fu">recipe</span>(Diabetes_binary <span class="sc">~</span> HighBP <span class="sc">+</span> HighChol <span class="sc">+</span> CholCheck <span class="sc">+</span> BMI <span class="sc">+</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>                     Smoker <span class="sc">+</span> Stroke <span class="sc">+</span> HeartDiseaseorAttack <span class="sc">+</span> PhysActivity <span class="sc">+</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>                     Fruits <span class="sc">+</span> Veggies <span class="sc">+</span> HvyAlcoholConsump <span class="sc">+</span> AnyHealthcare <span class="sc">+</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>                     NoDocbcCost <span class="sc">+</span> GenHlth <span class="sc">+</span> MentHlth <span class="sc">+</span> PhysHlth <span class="sc">+</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>                     DiffWalk <span class="sc">+</span> Sex <span class="sc">+</span> Age <span class="sc">+</span> Education <span class="sc">+</span> Income,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>                   <span class="at">data =</span> diabetes_train) <span class="sc">|&gt;</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_normalize</span>(BMI, MentHlth, PhysHlth) <span class="sc">|&gt;</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(HighBP, HighChol, CholCheck, Smoker, Stroke,</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>             HeartDiseaseorAttack, PhysActivity, Fruits, Veggies,</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>             HvyAlcoholConsump, AnyHealthcare, NoDocbcCost, GenHlth,</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>             DiffWalk, Sex, Age, Education, Income)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="co">#Setup glm engine</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>log_spec <span class="ot">&lt;-</span> <span class="fu">logistic_reg</span>() <span class="sc">|&gt;</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_engine</span>(<span class="st">"glm"</span>)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="co">#Setup workflows</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>log_work1 <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_recipe</span>(log_rec1) <span class="sc">|&gt;</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_model</span>(log_spec)</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>log_work2 <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_recipe</span>(log_rec2) <span class="sc">|&gt;</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_model</span>(log_spec)</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>log_work3 <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_recipe</span>(log_rec3) <span class="sc">|&gt;</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_model</span>(log_spec)</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a><span class="co">#Fit 5-fold CV to each model</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>log_fit1 <span class="ot">&lt;-</span> log_work1 <span class="sc">|&gt;</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fit_resamples</span>(diabetes_folds, <span class="at">metrics =</span> <span class="fu">metric_set</span>(accuracy, mn_log_loss))</span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>log_fit2 <span class="ot">&lt;-</span> log_work2 <span class="sc">|&gt;</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fit_resamples</span>(diabetes_folds, <span class="at">metrics =</span> <span class="fu">metric_set</span>(accuracy, mn_log_loss))</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>log_fit3 <span class="ot">&lt;-</span> log_work3 <span class="sc">|&gt;</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fit_resamples</span>(diabetes_folds, <span class="at">metrics =</span> <span class="fu">metric_set</span>(accuracy, mn_log_loss))</span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a><span class="co">#Observe which models performed the best</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a><span class="fu">rbind</span>(log_fit1 <span class="sc">|&gt;</span> <span class="fu">collect_metrics</span>(),</span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>      log_fit2 <span class="sc">|&gt;</span> <span class="fu">collect_metrics</span>(),</span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>      log_fit3 <span class="sc">|&gt;</span> <span class="fu">collect_metrics</span>()) <span class="sc">|&gt;</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Model =</span> <span class="fu">c</span>(<span class="st">"Model 1"</span>, <span class="st">"Model 1"</span>, </span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"Model 2"</span>, <span class="st">"Model 2"</span>, </span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"Model 3"</span>, <span class="st">"Model 3"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Model, <span class="fu">everything</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 2</code></pre>
+<pre><code># A tibble: 6 × 7
+  Model   .metric     .estimator  mean     n  std_err .config             
+  &lt;chr&gt;   &lt;chr&gt;       &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;    &lt;dbl&gt; &lt;chr&gt;               
+1 Model 1 accuracy    binary     0.860     5 0.000508 Preprocessor1_Model1
+2 Model 1 mn_log_loss binary     0.357     5 0.00118  Preprocessor1_Model1
+3 Model 2 accuracy    binary     0.865     5 0.000431 Preprocessor1_Model1
+4 Model 2 mn_log_loss binary     0.324     5 0.000959 Preprocessor1_Model1
+5 Model 3 accuracy    binary     0.866     5 0.000572 Preprocessor1_Model1
+6 Model 3 mn_log_loss binary     0.316     5 0.000856 Preprocessor1_Model1</code></pre>
 </div>
 </div>
-<p>You can add options to executable code like this</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 4</code></pre>
-</div>
-</div>
-<p>The <code>echo: false</code> option disables the printing of code (only output is displayed).</p>
+<p>The accuracy for each model is about 86%, 86.5%, and 86.6% respectively. It’s good that all of our models got similar results! As such, the best of the three models will be the one that normalizes log-loss. In this case, Model 3 minimizes log-loss as it has a value that is about 0.01 less than the next best model (Model 2). Therefore, Model 3 will be our selection from the logistic regression candidates.</p>
+</section>
+<section id="classification-tree" class="level2">
+<h2 class="anchored" data-anchor-id="classification-tree">Classification Tree</h2>
+</section>
+<section id="random-forest" class="level2">
+<h2 class="anchored" data-anchor-id="random-forest">Random Forest</h2>
+</section>
+<section id="final-model-selection" class="level2">
+<h2 class="anchored" data-anchor-id="final-model-selection">Final Model Selection</h2>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
