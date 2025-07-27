@@ -4,6 +4,8 @@ library(tidyverse)
 library(tidymodels)
 
 #Read in data from the diabetes dataset from EDA.qmd
+raw_data <- read.csv("diabetes.csv", header = TRUE)
+
 diabetes <- raw_data |>
   mutate(
     Diabetes_binary = factor(Diabetes_binary, levels = c(0, 1), labels = c("No", "Yes")),
