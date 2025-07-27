@@ -1,5 +1,7 @@
 #Load in required package(s)
 library(plumber)
+library(tidyverse)
+library(tidymodels)
 
 #Read in data from the diabetes dataset from EDA.qmd
 diabetes <- raw_data |>
@@ -41,7 +43,7 @@ log_rec3 <- recipe(Diabetes_binary ~ HighBP + HighChol + CholCheck + BMI +
                      Fruits + Veggies + HvyAlcoholConsump + AnyHealthcare +
                      NoDocbcCost + GenHlth + MentHlth + PhysHlth +
                      DiffWalk + Sex + Age + Education + Income,
-                   data = diabetes_train) |>
+                   data = diabetes) |>
   step_normalize(BMI, MentHlth, PhysHlth) |>
   step_dummy(HighBP, HighChol, CholCheck, Smoker, Stroke,
              HeartDiseaseorAttack, PhysActivity, Fruits, Veggies,
@@ -73,24 +75,78 @@ function() {
 #* @param var The variable(s) to be analyzed, separated by a semi-colon (;)
 #* @param input The input(s) corresponding to the variables, separated by a semi-colon (;)
 #* @get /pred
-function(var) {
+function(var, input) {
+  #Split values by individual arguments
   vars <- strsplit(var, split = ";")
   inputs <- strsplit(input, split = ";")
-  colnames(inputs) <- vars
   
-  new_obs <- vector(length = 21)
-  colnames(new_obs) <- colnames(diabetes)
-
-  #TODO: Turn this into something that returns a prediction
+  #Create empty df
+  values <- diabetes[FALSE,]
+  
+  #Sanity check: same number of inputs as vars
+  if (length(vars[[1]]) == length(inputs[[1]])) {
+    inputs <- data.frame(t(inputs))
+    colnames(inputs) <- vars
+    
+    #Load columns
+    for (i in seq_along(diabetes)) {
+      
+      if (i == 1) {
+        #Do nothing
+      } else {
+        
+        if (is.factor(diabetes[,i])) {
+          values[1,i] <- names(sort(table(diabetes[,i]),decreasing = TRUE)[1])
+        } else if (is.numeric(diabetes[,i])) {
+          values[1,i] <- mean(diabetes[,i])
+        }
+        
+      }
+    }
+    
+    colnames(values) <- colnames(diabetes)
+    
+    
+    #Overwrite defaults with user inputs
+    for (i in seq_along(inputs)) {
+      
+      for (j in seq_along(values)) {
+        
+        if (colnames(inputs)[i] == colnames(values)[j]) {
+          if (is.factor(values[,j])) {
+            values[1,j] <- as.factor(inputs[1,i])
+          } else {
+            values[1,j] <- as.numeric(inputs[1,i])
+          }
+          
+        }
+        
+      }
+      
+    }
+    
+    #Predict outcome using final model
+    pred <- predict(model, new_data = values)
+    pred <- names(sort(table(pred), decreasing = TRUE))[1] #Converts most prevalent factor (the prediction) into a string for readability
+    
+    
+    
+    #Print output!
+    paste("Diabetes Health Indicators Model Prediction:", pred)
+    
+  } else {
+    "Error! Make sure predictors are valid and there is the same number of inputs."
+  }
+  
 }
 
 #EXAMPLES:
 
 #Returns prediction based on one value
-#http://localhost:8000/pred?var=BMI?input=
+#http://localhost:8000/pred?var=BMI?input=25
 
 #Returns prediction based on multiple values
-#http://localhost:8000/pred?var=BMI-Age-HighBP
+#http://localhost:8000/pred?var=BMI;Age;HighBP?input=25;18-24;Low
 
-#Returns a string asking you to input valid predictors
-#http://localhost:8000/pred?var=Diabetes_binary
+#Returns a string error
+#http://localhost:8000/pred?var=BMI
